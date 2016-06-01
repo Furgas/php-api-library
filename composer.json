@@ -8,6 +8,9 @@
         "php": ">=5.3.0",
         "ext-curl": "*"
     },
+    "require-dev": {
+        "phpdocumentor/phpdocumentor": "~2.8"
+    },
     "config": {
         "bin-dir": "bin"
     },

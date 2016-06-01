@@ -1,3 +1,6 @@
 .idea
+bin
+doc
+output
 vendor
 composer.lock
