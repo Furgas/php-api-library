@@ -24,7 +24,7 @@ define('SECRET_KEY', '<Secret key>');
 define('DEBUG', true);
 define('USER_GROUP_TITLE', 'Registered');
 
-require_once("../kyIncludes.php");
+require_once(__DIR__ . "/../vendor/autoload.php");
 
 /**
  * Initializes the client.

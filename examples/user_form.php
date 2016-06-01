@@ -24,7 +24,7 @@ define('DEBUG', true);
 define('USER_GROUP_TITLE', 'Registered');
 define('SEND_WELCOME_EMAIL', false);
 
-require_once("../kyIncludes.php");
+require_once(__DIR__ . "/../vendor/autoload.php");
 
 /**
  * Initializes the client.
