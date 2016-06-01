@@ -160,11 +160,12 @@ class RESTClient implements RESTClientInterface {
 		$curl_options[CURLOPT_HTTPHEADER] = $headers;
 
 		if ($this->config->isDebugEnabled()) {
-			error_log('Sending REST request to Kayako:');
-			error_log(sprintf('  %s: %s', $method, $curl_options[CURLOPT_URL]));
+			$request_log = "Sending REST request to Kayako:\n";
+			$request_log .= sprintf("  %s: %s\n", $method, $curl_options[CURLOPT_URL]);
 			if ($method === self::METHOD_POST || $method === self::METHOD_PUT) {
-				error_log(sprintf('  Body: %s', $request_body));
+				$request_log .= sprintf("  Body: %s", $request_body);
 			}
+			$this->config->getLogger()->debug($request_log);
 		}
 
 		$curl_handle = curl_init();
@@ -173,8 +174,9 @@ class RESTClient implements RESTClientInterface {
 		$response = curl_exec($curl_handle);
 
 		if ($this->config->isDebugEnabled()) {
-			error_log('Response from Kayako server:');
-			error_log($response);
+			$response_log = "Response from Kayako server:\n";
+			$response_log .= $response;
+			$this->config->getLogger()->debug($response_log);
 		}
 
 		//removing any output prior to proper XML response (ex. Kayako notices)

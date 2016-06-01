@@ -1,9 +1,11 @@
 <?php
 namespace Kayako\Api\Client;
 
+use Kayako\Api\Client\Common\ErrorLogLogger;
 use Kayako\Api\Client\Common\REST\RESTClient;
 use Kayako\Api\Client\Common\REST\RESTClientInterface;
 use Kayako\Api\Client\Exception\GeneralException;
+use Psr\Log\LoggerInterface;
 
 /**
  * Class holding library configuration.
@@ -57,11 +59,18 @@ class Config {
 	private $is_standard_url_type = true;
 
 	/**
-	 * True to enable outputing REST requests and responses to error log.
+	 * True to enable debugging:
+	 * - logs REST requests and responses with defined logger
 	 * @var bool
 	 */
 	private $is_debug_enabled = false;
 
+	/**
+	 * Logger.
+	 * @var LoggerInterface
+	 */
+	private $logger;
+	
 	/**
 	 * Current configuration.
 	 * @var Config
@@ -79,6 +88,7 @@ class Config {
 		$this->setBaseURL($base_url);
 		$this->setAPIKey($api_key);
 		$this->setSecretKey($secret_key);
+		$this->setLogger(new ErrorLogLogger());
 	}
 
 	/**
@@ -298,5 +308,26 @@ class Config {
 	public function setDebugEnabled($is_debug_enabled) {
 		$this->is_debug_enabled = $is_debug_enabled;
 		return $this;
+	}
+
+	/**
+	 * Returns the logger.
+	 *
+	 * @return LoggerInterface
+	 */
+	public function getLogger() {
+		return $this->logger;
+	}
+
+	/**
+	 * Sets the logger to use.
+	 *
+	 * @param LoggerInterface $logger Logger.
+	 */
+	public function setLogger($logger) {
+		if ($logger === null)
+			return;
+
+		$this->logger = $logger;
 	}
 }
