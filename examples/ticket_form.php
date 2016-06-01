@@ -14,8 +14,23 @@
  *
  * @author Tomasz Sawicki (https://github.com/Furgas)
  * @since Kayako version 4.40.1079
- * @package Example
  */
+
+require_once(__DIR__ . '/../vendor/autoload.php');
+
+use Kayako\Api\Client\Common\ResultSet;
+use Kayako\Api\Client\Config;
+use Kayako\Api\Client\Object\CustomField\CustomField;
+use Kayako\Api\Client\Object\CustomField\CustomFieldDefinition;
+use Kayako\Api\Client\Object\CustomField\CustomFieldFile;
+use Kayako\Api\Client\Object\CustomField\CustomFieldOption;
+use Kayako\Api\Client\Object\Department\Department;
+use Kayako\Api\Client\Object\Ticket\Ticket;
+use Kayako\Api\Client\Object\Ticket\TicketCustomFieldGroup;
+use Kayako\Api\Client\Object\Ticket\TicketPriority;
+use Kayako\Api\Client\Object\Ticket\TicketStatus;
+use Kayako\Api\Client\Object\Ticket\TicketType;
+use Kayako\Api\Client\Object\User\UserGroup;
 
 define('DEFAULT_TICKET_STATUS_NAME', 'Open');
 define('BASE_URL', '<API URL>');
@@ -24,15 +39,13 @@ define('SECRET_KEY', '<Secret key>');
 define('DEBUG', true);
 define('USER_GROUP_TITLE', 'Registered');
 
-require_once(__DIR__ . "/../vendor/autoload.php");
-
 /**
  * Initializes the client.
  */
 function initKayako() {
-	$config = new kyConfig(BASE_URL, API_KEY, SECRET_KEY);
+	$config = new Config(BASE_URL, API_KEY, SECRET_KEY);
 	$config->setDebugEnabled(DEBUG);
-	kyConfig::set($config);
+	Config::set($config);
 }
 
 /**
@@ -49,11 +62,14 @@ function initKayako() {
  */
 function getDepartmentsTree() {
 	$departments_tree = array();
-	$all_departments = kyDepartment::getAll()->filterByModule(kyDepartment::MODULE_TICKETS)->filterByType(kyDepartment::TYPE_PUBLIC);
+	/** @noinspection PhpUndefinedMethodInspection */
+	$all_departments = Department::getAll()->filterByModule(Department::MODULE_TICKETS)->filterByType(Department::TYPE_PUBLIC);
 
+	/** @noinspection PhpUndefinedMethodInspection */
 	$top_departments = $all_departments->filterByParentDepartmentId(null)->orderByDisplayOrder();
 	foreach ($top_departments as $top_department) {
-		/* @var $top_department kyDepartment */
+		/* @var $top_department Department */
+		/** @noinspection PhpUndefinedMethodInspection */
 		$departments_tree[$top_department->getId()] = array(
 			'department' => $top_department,
 			'child_departments' => $all_departments->filterByParentDepartmentId($top_department->getId())->orderByDisplayOrder()
@@ -70,26 +86,26 @@ function getDepartmentsTree() {
  *     ...
  * )
  *
- * @param kyTicket $ticket Ticket.
+ * @param Ticket $ticket Ticket.
  * @param bool $file_custom_field_present Placeholder to indicate if there is file custom field.
- * @return array
+ * @return CustomField[]|Resultset
  */
-function get_ticket_custom_fields(kyTicket $ticket, &$file_custom_field_present) {
+function get_ticket_custom_fields(Ticket $ticket, &$file_custom_field_present) {
 	$custom_field_groups = $ticket->getCustomFieldGroups();
 	if (count($custom_field_groups) === 0)
 		return array();
 
 	$custom_fields = array();
 	foreach ($custom_field_groups as $custom_field_group) {
-		/* @var $custom_field_group kyTicketCustomFieldGroup */
+		/* @var $custom_field_group TicketCustomFieldGroup */
 
 		$group_custom_fields = array();
 		foreach ($custom_field_group->getFields() as $custom_field) {
-			/* @var $custom_field kyCustomField */
+			/* @var $custom_field CustomField */
 			if (!$custom_field->getDefinition()->getIsUserEditable())
 				continue;
 
-			if ($custom_field->getType() === kyCustomFieldDefinition::TYPE_FILE) {
+			if ($custom_field->getType() === CustomFieldDefinition::TYPE_FILE) {
 				$file_custom_field_present = true;
 			}
 
@@ -297,6 +313,13 @@ switch ($page) {
 
 		//if valid, render General Information form, re-render Department form if it's invalid
 		$render = $form_valid ? 'general' : 'department';
+
+		$creator_full_name = '';
+		$creator_email = '';
+		$type_id = null;
+		$priority_id = null;
+		$subject = '';
+		$contents = '';
 	break;
 
 	case 'general': //we are submitting General Information form
@@ -316,8 +339,8 @@ switch ($page) {
 	case 'custom_fields': //we are submitting Custom Fields form
 		$ticket_id = get_post_value('ticket_id', $form_valid, $fields_valid);
 
-		/** @var $ticket kyTicket */
-		$ticket = kyTicket::get($ticket_id);
+		/** @var $ticket Ticket */
+		$ticket = Ticket::get($ticket_id);
 
 		//load ticket custom fields; check if there is a file custom field (for proper form encoding)
 		$file_custom_field_present = false;
@@ -333,11 +356,11 @@ switch ($page) {
 		$custom_field_values = array();
 		foreach ($ticket_custom_fields as $custom_fields) {
 			foreach ($custom_fields as $custom_field) {
-				/* @var $custom_field kyCustomField */
+				/* @var $custom_field CustomField */
 				$custom_field_definition = $custom_field->getDefinition();
 
 				//process file custom field
-				if ($custom_field_definition->getType() === kyCustomFieldDefinition::TYPE_FILE) {
+				if ($custom_field_definition->getType() === CustomFieldDefinition::TYPE_FILE) {
 					$fields_valid[$custom_field->getName()] = true;
 					if (array_key_exists($custom_field->getName(), $_FILES) && $_FILES[$custom_field->getName()]['error'] != UPLOAD_ERR_NO_FILE) {
 						if ($_FILES[$custom_field->getName()]['error'] != UPLOAD_ERR_OK || !is_uploaded_file($_FILES[$custom_field->getName()]['tmp_name'])) {
@@ -358,7 +381,7 @@ switch ($page) {
 				}
 
 				//process other custom fields
-				$custom_field_values[$custom_field->getName()] = get_post_value($custom_field->getName(), $form_valid, $fields_valid, $custom_field_definition->getIsRequired(), $custom_field_definition->getRegexpValidate(), $custom_field_definition->getType() === kyCustomFieldDefinition::TYPE_CHECKBOX || $custom_field_definition->getType() === kyCustomFieldDefinition::TYPE_MULTI_SELECT);
+				$custom_field_values[$custom_field->getName()] = get_post_value($custom_field->getName(), $form_valid, $fields_valid, $custom_field_definition->getIsRequired(), $custom_field_definition->getRegexpValidate(), $custom_field_definition->getType() === CustomFieldDefinition::TYPE_CHECKBOX || $custom_field_definition->getType() === CustomFieldDefinition::TYPE_MULTI_SELECT);
 			}
 		}
 
@@ -392,7 +415,7 @@ if ($render === 'department') {
 				foreach ($departments_tree as $department_leaf) {
 					$top_department = $department_leaf['department'];
 					$child_departments = $department_leaf['child_departments'];
-					/*@var $top_department kyDepartment */
+					/** @var Department $top_department */
 ?>
 				<label>
 					<input type="radio" name="department_id" value="<?=$top_department->getId()?>">
@@ -403,7 +426,7 @@ if ($render === 'department') {
 <?php
 					//iterating over child departments
 					foreach ($child_departments as $child_department) {
-						/*@var $child_department kyDepartment */
+						/** @var Department $child_department */
 ?>
 						<label>
 							<input type="radio" name="department_id" value="<?=$child_department->getId()?>">
@@ -428,24 +451,31 @@ if ($render === 'department') {
 //we are rendering General Information form
 if ($render === 'general') {
 	//load the department we've chosen in Department form
-	$department = kyDepartment::get($department_id);
+	$department = Department::get($department_id);
 
 	//load user group for ticket type and priority visibility test
-	$user_group = kyUserGroup::getAll()->filterByTitle(USER_GROUP_TITLE)->first();
+	/** @noinspection PhpUndefinedMethodInspection */
+	$user_group = UserGroup::getAll()->filterByTitle(USER_GROUP_TITLE)->first();
 
 	//load public ticket types
-	$ticket_types = kyTicketType::getAll()->filterByType(kyTicketType::TYPE_PUBLIC);
+	/** @noinspection PhpUndefinedMethodInspection */
+	/** @var TicketType[]|ResultSet $ticket_types */
+	$ticket_types = TicketType::getAll()->filterByType(TicketType::TYPE_PUBLIC);
 
 	//get only types visible to user group
 	if ($user_group !== null) {
+		/** @noinspection PhpUndefinedMethodInspection */
 		$ticket_types = $ticket_types->filterByIsVisibleToUserGroup(true, $user_group);
 	}
 
 	//load public ticket priorities
-	$ticket_priorities = kyTicketPriority::getAll()->filterByType(kyTicketPriority::TYPE_PUBLIC);
+	/** @noinspection PhpUndefinedMethodInspection */
+	/** @var TicketPriority[]|ResultSet $ticket_priorities */
+	$ticket_priorities = TicketPriority::getAll()->filterByType(TicketPriority::TYPE_PUBLIC);
 
 	//get only priorities visible to user group
 	if ($user_group !== null) {
+		/** @noinspection PhpUndefinedMethodInspection */
 		$ticket_priorities = $ticket_priorities->filterByIsVisibleToUserGroup(true, $user_group);
 	}
 ?>
@@ -470,7 +500,7 @@ if ($render === 'general') {
 				<select id="type_id" name="type_id">
 <?php
 				foreach ($ticket_types as $ticket_type) {
-					/*@var $ticket_type kyTicketType */
+					/** @var TicketType $ticket_type */
 					$selected = false;
 					if (is_numeric($type_id) && $type_id == $ticket_type->getId()) {
 						$selected = true;
@@ -489,7 +519,7 @@ if ($render === 'general') {
 				<select id="priority_id" name="priority_id">
 <?php
 				foreach ($ticket_priorities as $ticket_priority) {
-					/*@var $ticket_priority kyTicketPriority */
+					/* @var TicketPriority $ticket_priority */
 					$selected = false;
 					if (is_numeric($priority_id) && $priority_id == $ticket_priority->getId()) {
 						$selected = true;
@@ -528,18 +558,19 @@ if ($render === 'general') {
 //we are submitting the ticket; we are doing this before rendering Custom Fields form because there is no way to load them before creating the ticket (see http://dev.kayako.com/browse/SWIFT-2391 for improvement request)
 if ($render === 'submit') {
 	//load the department we've chosen in Department form
-	/** @var $department kyDepartment */
-	$department = kyDepartment::get($department_id);
+	/** @var $department Department */
+	$department = Department::get($department_id);
 
 	//load default ticket status (based on DEFAULT_TICKET_STATUS_NAME constant defined at top of the file)
-	$status_id = kyTicketStatus::getAll()->filterByTitle(DEFAULT_TICKET_STATUS_NAME)->first()->getId();
+	/** @noinspection PhpUndefinedMethodInspection */
+	$status_id = TicketStatus::getAll()->filterByTitle(DEFAULT_TICKET_STATUS_NAME)->first()->getId();
 
 	//initialize default ticket status (loaded line before), priority (from General Information form) and type (from General Information form)
-	kyTicket::setDefaults($status_id, $priority_id, $type_id);
+	Ticket::setDefaults($status_id, $priority_id, $type_id);
 
 	//create the ticket
-	/** @var $ticket kyTicket */
-	$ticket = kyTicket::createNewAuto($department, $creator_full_name, $creator_email, $contents, $subject)
+	/** @var $ticket Ticket */
+	$ticket = Ticket::createNewAuto($department, $creator_full_name, $creator_email, $contents, $subject)
 		->create();
 
 	//get ticket id
@@ -554,7 +585,7 @@ if ($render === 'submit') {
 		$custom_field_values = array();
 		foreach ($ticket_custom_fields as $custom_fields) {
 			foreach ($custom_fields as $custom_field) {
-				/* @var $custom_field kyCustomField */
+				/* @var $custom_field CustomField */
 				$field_default_value = $custom_field->getDefinition()->getDefaultValue();
 				if ($field_default_value === null)
 					continue;
@@ -585,7 +616,7 @@ if ($render === 'custom_fields') {
 <?php
 			//iterating over custom fields in group
 			foreach ($custom_fields as $custom_field) {
-				/* @var $custom_field kyCustomField */
+				/* @var $custom_field CustomField */
 
 				//assign to local variables to write less
 				$custom_field_definition = $custom_field->getDefinition();
@@ -601,8 +632,8 @@ if ($render === 'custom_fields') {
 
 				//render custom field based on its type
 				switch ($custom_field->getType()) {
-					case kyCustomFieldDefinition::TYPE_CUSTOM:
-					case kyCustomFieldDefinition::TYPE_TEXT:
+					case CustomFieldDefinition::TYPE_CUSTOM:
+					case CustomFieldDefinition::TYPE_TEXT:
 ?>
 						<label><span class="name"><?=$field_title?></span>
 							<input type="text" value="<?=$field_value?>" id="<?=$field_name?>" name="<?=$field_name?>">
@@ -611,7 +642,7 @@ if ($render === 'custom_fields') {
 <?php
 					break;
 
-					case kyCustomFieldDefinition::TYPE_TEXTAREA:
+					case CustomFieldDefinition::TYPE_TEXTAREA:
 ?>
 						<label><span class="name"><?=$field_title?></span>
 							<textarea id="<?=$field_name?>" name="<?=$field_name?>" cols="30" rows="10"><?=$field_value?></textarea>
@@ -620,7 +651,7 @@ if ($render === 'custom_fields') {
 <?php
 					break;
 
-					case kyCustomFieldDefinition::TYPE_PASSWORD:
+					case CustomFieldDefinition::TYPE_PASSWORD:
 ?>
 						<label><span class="name"><?=$field_title?></span>
 							<input type="password" value="<?=$field_value?>" id="<?=$field_name?>" name="<?=$field_name?>" autocomplete="off">
@@ -629,14 +660,15 @@ if ($render === 'custom_fields') {
 <?php
 					break;
 
-					case kyCustomFieldDefinition::TYPE_RADIO:
+					case CustomFieldDefinition::TYPE_RADIO:
 ?>
 						<div class="field"><span class="name"><?=$field_title?></span>
 						<span class="description<?=$field_required ? ' required' : ''?><?=!$form_valid && $field_valid !== true ? ' error' : ''?>"><?=!$form_valid && is_string($field_valid) ? $field_valid : $field_description?></span>
 <?php
 						//iterating over possible options
+						/** @noinspection PhpUndefinedMethodInspection */
 						foreach ($custom_field_definition->getOptions()->orderByDisplayOrder() as $field_option) {
-							/*@var $field_option kyCustomFieldOption */
+							/** @var CustomFieldOption $field_option */
 							$is_checked = false;
 							if (($field_value === null && $field_option->getIsSelected()) || ($field_value == $field_option->getId())) {
 								$is_checked = true;
@@ -654,14 +686,15 @@ if ($render === 'custom_fields') {
 <?php
 					break;
 
-					case kyCustomFieldDefinition::TYPE_SELECT:
+					case CustomFieldDefinition::TYPE_SELECT:
 ?>
 						<label><span class="name"><?=$field_title?></span>
 						<select id="<?=$field_name?>" name="<?=$field_name?>">
 <?php
 							//iterating over possible options
+							/** @noinspection PhpUndefinedMethodInspection */
 							foreach ($custom_field_definition->getOptions()->orderByDisplayOrder() as $field_option) {
-								/*@var $field_option kyCustomFieldOption */
+								/** @var CustomFieldOption $field_option */
 								$is_selected = false;
 								if (($field_value === null && $field_option->getIsSelected()) || ($field_value == $field_option->getId())) {
 									$is_selected = true;
@@ -678,21 +711,23 @@ if ($render === 'custom_fields') {
 <?php
 					break;
 
-					case kyCustomFieldDefinition::TYPE_LINKED_SELECT:
+					case CustomFieldDefinition::TYPE_LINKED_SELECT:
 ?>
 						<label><span class="name"><?=$field_title?></span>
 						<select id="<?=$field_name?>" name="<?=$field_name?>">
 <?php
 							$custom_field_options = $custom_field_definition->getOptions();
 							//iterating over options without parent option; render them as option groups (we are assuming that we can't select these options)
+							/** @noinspection PhpUndefinedMethodInspection */
 							foreach ($custom_field_options->filterByParentOptionId(null)->orderByDisplayOrder() as $field_parent_option) {
-								/*@var $field_parent_option kyCustomFieldOption */
+								/** @var CustomFieldOption $field_parent_option */
 ?>
 								<optgroup label="<?=$field_parent_option->getValue()?>">
 <?php
 								//iterating over child options
+								/** @noinspection PhpUndefinedMethodInspection */
 								foreach ($custom_field_options->filterByParentOptionId($field_parent_option->getId())->orderByDisplayOrder() as $field_child_option) {
-									/*@var $field_child_option kyCustomFieldOption */
+									/** @var CustomFieldOption $field_child_option */
 									$is_selected = false;
 									if (($field_value === null && $field_child_option->getIsSelected()) || ($field_value == $field_child_option->getId())) {
 										$is_selected = true;
@@ -712,14 +747,15 @@ if ($render === 'custom_fields') {
 <?php
 					break;
 
-					case kyCustomFieldDefinition::TYPE_CHECKBOX:
+					case CustomFieldDefinition::TYPE_CHECKBOX:
 ?>
 						<div class="field"><span class="name"><?=$field_title?></span>
 						<span class="description<?=$field_required ? ' required' : ''?><?=!$form_valid && $field_valid !== true ? ' error' : ''?>"><?=!$form_valid && is_string($field_valid) ? $field_valid : $field_description?></span>
 <?php
 						//iterating over possible options
+						/** @noinspection PhpUndefinedMethodInspection */
 						foreach ($custom_field_definition->getOptions()->orderByDisplayOrder() as $field_option) {
-							/*@var $field_option kyCustomFieldOption */
+							/** @var CustomFieldOption $field_option */
 							$is_checked = false;
 							if (($field_value === null && $field_option->getIsSelected()) || (is_array($field_value) && in_array($field_option->getId(), $field_value))) {
 								$is_checked = true;
@@ -736,14 +772,15 @@ if ($render === 'custom_fields') {
 <?php
 					break;
 
-					case kyCustomFieldDefinition::TYPE_MULTI_SELECT:
+					case CustomFieldDefinition::TYPE_MULTI_SELECT:
 ?>
 						<label><span class="name"><?=$field_title?></span>
 						<select id="<?=$field_name?>" name="<?=$field_name?>[]" multiple>
 <?php
 							//iterating over possible options
+							/** @noinspection PhpUndefinedMethodInspection */
 							foreach ($custom_field_definition->getOptions()->orderByDisplayOrder() as $field_option) {
-								/*@var $field_option kyCustomFieldOption */
+								/** @var CustomFieldOption $field_option */
 								$is_selected = false;
 								if (($field_value === null && $field_option->getIsSelected()) || (is_array($field_value) && in_array($field_option->getId(), $field_value))) {
 									$is_selected = true;
@@ -760,7 +797,7 @@ if ($render === 'custom_fields') {
 <?php
 					break;
 
-					case kyCustomFieldDefinition::TYPE_DATE:
+					case CustomFieldDefinition::TYPE_DATE:
 						//I'm lazy, render it as simple text field
 ?>
 						<label><span class="name"><?=$field_title?></span>
@@ -770,7 +807,7 @@ if ($render === 'custom_fields') {
 <?php
 					break;
 
-					case kyCustomFieldDefinition::TYPE_FILE:
+					case CustomFieldDefinition::TYPE_FILE:
 ?>
 						<label><span class="name"><?=$field_title?></span>
 							<input type="file" id="<?=$field_name?>" name="<?=$field_name?>">
@@ -798,13 +835,13 @@ if ($render === 'submit_custom_fields') {
 	foreach ($ticket_custom_fields as $custom_fields) {
 		//iterating over custom fields in group
 		foreach ($custom_fields as $custom_field) {
-			/* @var $custom_field kyCustomField */
+			/* @var $custom_field CustomField */
 
 			$field_value = array_key_exists($custom_field->getName(), $custom_field_values) ? $custom_field_values[$custom_field->getName()] : null;
 
 			//set custom field value based on its type
-			if ($custom_field->getType() === kyCustomFieldDefinition::TYPE_FILE) {
-				/* @var $custom_field kyCustomFieldFile */
+			if ($custom_field->getType() === CustomFieldDefinition::TYPE_FILE) {
+				/* @var $custom_field CustomFieldFile */
 				if (array_key_exists($custom_field->getName(), $_FILES) && $_FILES[$custom_field->getName()]['error'] != UPLOAD_ERR_NO_FILE) {
 					$file_data = $_FILES[$custom_field->getName()];
 					$custom_field->setContentsFromFile($file_data['tmp_name'], $file_data['name']);

@@ -14,8 +14,14 @@
  *
  * @author Tomasz Sawicki (https://github.com/Furgas)
  * @since Kayako version 4.40.240
- * @package Example
  */
+
+require_once(__DIR__ . '/../vendor/autoload.php');
+
+use Kayako\Api\Client\Config;
+use Kayako\Api\Client\Object\User\User;
+use Kayako\Api\Client\Object\User\UserGroup;
+use Kayako\Api\Client\Object\User\UserOrganization;
 
 define('BASE_URL', '<API URL>');
 define('API_KEY', '<API key>');
@@ -24,15 +30,13 @@ define('DEBUG', true);
 define('USER_GROUP_TITLE', 'Registered');
 define('SEND_WELCOME_EMAIL', false);
 
-require_once(__DIR__ . "/../vendor/autoload.php");
-
 /**
  * Initializes the client.
  */
 function initKayako() {
-	$config = new kyConfig(BASE_URL, API_KEY, SECRET_KEY);
+	$config = new Config(BASE_URL, API_KEY, SECRET_KEY);
 	$config->setDebugEnabled(DEBUG);
-	kyConfig::set($config);
+	Config::set($config);
 }
 
 /**
@@ -300,7 +304,8 @@ switch ($page) {
 
 //we are rendering User form
 if ($render === 'user') {
-	$user_organizations = kyUserOrganization::getAll()->filterByType(kyUserOrganization::TYPE_SHARED);
+	/** @noinspection PhpUndefinedMethodInspection */
+	$user_organizations = UserOrganization::getAll()->filterByType(UserOrganization::TYPE_SHARED);
 	$salutations = array('Mr.', 'Ms.', 'Mrs.', 'Dr.');
 
 	$timezones = get_timezones();
@@ -355,7 +360,7 @@ if ($render === 'user') {
 					<option value=""></option>
 <?php
 				foreach ($user_organizations as $user_organization) {
-					/*@var $user_organization kyUserOrganization */
+					/** @var UserOrganization $user_organization */
 					$selected = false;
 					if (is_numeric($user_organization_id) && $user_organization_id == $user_organization->getId()) {
 						$selected = true;
@@ -417,10 +422,11 @@ if ($render === 'user') {
 //we are creating the user
 if ($render === 'submit') {
 	//load default user group
-	$user_group = kyUserGroup::getAll()->filterByTitle(USER_GROUP_TITLE)->first();
+	/** @noinspection PhpUndefinedMethodInspection */
+	$user_group = UserGroup::getAll()->filterByTitle(USER_GROUP_TITLE)->first();
 
 	//create the user
-	$user = kyUser::createNew($full_name, $email, $user_group, $password)
+	$user = User::createNew($full_name, $email, $user_group, $password)
 		->setEnableDST($enable_dst)
 		->setSendWelcomeEmail(SEND_WELCOME_EMAIL);
 
