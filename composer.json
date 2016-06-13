@@ -10,7 +10,7 @@
         "psr/log": "~1.0"
     },
     "require-dev": {
-        "phpdocumentor/phpdocumentor": "^2.9.0"
+        "phpdocumentor/phpdocumentor": "^2.9"
     },
     "suggest": {
         "monolog/monolog": "A powerful implementation of \"psr/log\" that enables debug"
